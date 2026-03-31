@@ -10,6 +10,27 @@ from transformers import CLIPProcessor, CLIPModel
 from torchmetrics.image.fid import FrechetInceptionDistance
 from datasets import load_dataset
 import torchvision.transforms as transforms
+import logging  # 추가
+from datetime import datetime
+
+
+# --- 0. 디렉토리 설정 ---
+LOG_DIR = "./logs"
+RESULT_DIR = "./results"
+os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(RESULT_DIR, exist_ok=True)
+
+# 로깅 설정
+log_filename = f"experiment.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR, log_filename)),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # --- 1. 환경 설정 및 메모리 최적화 ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -34,9 +55,8 @@ def setup_pipeline():
 
 # --- 2. UCE (Baseline) 알고리즘 구현 ---
 def apply_uce_erasure(pipeline, concept_to_erase, preserve_concepts, lamb=0.1):
-    """UCE 알고리즘을 통한 가중치 업데이트 [cite: 31, 36]"""
-    print(f"\n[UCE] Erasing '{concept_to_erase}' while preserving {preserve_concepts}...")
-    
+    logger.info(f"[UCE] Erasing '{concept_to_erase}' while preserving {preserve_concepts}...")
+
     tokenizer = pipeline.tokenizer
     text_encoder = pipeline.text_encoder.to(device)
     
@@ -64,27 +84,35 @@ def apply_uce_erasure(pipeline, concept_to_erase, preserve_concepts, lamb=0.1):
     
     return pipeline
 
-# --- 3. 평가 함수 (CLIP Score & FID) ---
-def evaluate_model(pipeline, prompts, clip_model, clip_processor, fid_metric, real_images=None):
+# --- 3. 평가 함수 (이미지 저장 로직 추가) ---
+def evaluate_model(pipeline, prompts, clip_model, clip_processor, fid_metric, concept_name, real_images=None, save_samples=True):
     pipeline.set_progress_bar_config(disable=True)
     generated_images = []
     to_tensor = transforms.ToTensor()
     
-    for prompt in prompts:
+    # 결과 저장을 위한 하위 폴더 생성
+    concept_result_path = os.path.join(RESULT_DIR, concept_name)
+    if save_samples:
+        os.makedirs(concept_result_path, exist_ok=True)
+    
+    for i, prompt in enumerate(prompts):
         img = pipeline(prompt, num_inference_steps=30).images[0]
         generated_images.append(img)
         
-        # FID용 텐서 변환
+        # 이미지 저장 (각 컨셉당 처음 몇 장만 저장하거나 전체 저장)
+        if save_samples:
+            img.save(os.path.join(concept_result_path, f"sample_{i}.png"))
+        
         img_tensor = (to_tensor(img.resize((512, 512))) * 255).to(torch.uint8).to(device)
         fid_metric.update(img_tensor.unsqueeze(0), real=False)
     
-    # CLIP Score (CS)
+    # CLIP Score 계산
     inputs = clip_processor(text=prompts, images=generated_images, return_tensors="pt", padding=True).to(device)
     with torch.no_grad():
         outputs = clip_model(**inputs)
     cs_score = outputs.logits_per_image.diag().mean().item()
     
-    # FID
+    # FID 계산
     if real_images is not None:
         fid_metric.update(real_images, real=True)
     fid_score = fid_metric.compute().item()
@@ -94,9 +122,10 @@ def evaluate_model(pipeline, prompts, clip_model, clip_processor, fid_metric, re
 
 # --- 4. 메인 실험 루프 ---
 def main():
+    logger.info("Starting Experiment...")
     clear_memory()
     pipe = setup_pipeline()
-    
+
     # 평가 지표 초기화
     clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch16").to(device)
     clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch16")
@@ -111,7 +140,7 @@ def main():
     }
 
     # MS-COCO 로드
-    print("Loading MS-COCO dataset...")
+    logger.info("Loading MS-COCO dataset...")
     coco_ds = load_dataset("detection-datasets/coco", split="val", trust_remote_code=True)
     coco_prompts = [coco_ds[i]['caption'] for i in range(50)]
     
@@ -125,23 +154,17 @@ def main():
     # 결과 저장을 위한 테이블 
     final_results = []
 
-    # Sequential Erasure 수행 [cite: 8, 12]
     for concept in target_concepts:
-        # 1. 지우기 전 Baseline 측정 (Optional: 첫 루프에서만 수행)
-        
-        # 2. 삭제 수행
         pipe = apply_uce_erasure(pipe, concept, preserved_dict[f"{concept}_r"])
         
-        # 3. 현재 지운 개념 평가 (Target CS)
-        cs, fid = evaluate_model(pipe, [f"A photo of {concept}"] * 10, clip_model, clip_processor, fid_metric)
-        print(f">> Result for {concept}: CS={cs:.4f}, FID={fid:.4f}")
-        final_results.append({"Concept": concept, "CS": cs, "FID": fid})
+        # 평가 및 이미지 저장
+        cs, fid = evaluate_model(pipe, [f"A photo of {concept}"] * 10, clip_model, clip_processor, fid_metric, concept_name=concept)
+        logger.info(f">> Result for {concept}: CS={cs:.4f}, FID={fid:.4f}")
 
-    # 4. 최종 MS-COCO 평가 
-    coco_cs, coco_fid = evaluate_model(pipe, coco_prompts, clip_model, clip_processor, fid_metric, real_images=real_imgs_tensor)
-    print(f"\nFinal MS-COCO: CS={coco_cs:.4f}, FID={coco_fid:.4f}")
-    
-    print("\n[Done] All concepts erased sequentially.")
+    # 최종 MS-COCO 평가 (이미지 저장 포함)
+    coco_cs, coco_fid = evaluate_model(pipe, coco_prompts, clip_model, clip_processor, fid_metric, concept_name="MS_COCO", real_images=real_imgs_tensor)
+    logger.info(f"Final MS-COCO: CS={coco_cs:.4f}, FID={coco_fid:.4f}")
+    logger.info("All concepts erased sequentially.")
 
 if __name__ == "__main__":
     main()
