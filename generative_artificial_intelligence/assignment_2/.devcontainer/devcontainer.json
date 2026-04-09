@@ -1,0 +1,11 @@
+{
+    "name": "GPU 0 Container",
+    "image": "jameskimh/doc:latest",
+    "runArgs": [
+        "--gpus",
+        "device=0" // "all" 대신 "device=0"을 넣습니다.
+    ],
+    "containerEnv": {
+        "NVIDIA_VISIBLE_DEVICES": "0" // 환경 변수로도 한 번 더 확실히 지정합니다.
+    }
+}
