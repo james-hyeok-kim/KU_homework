@@ -34,6 +34,7 @@ class VAE(nn.Module):
         # features into estimates of the mean and log-variance of the posterior over the latent    #
         # vectors; the mean and log-variance estimates will both be tensors of shape (N, Z).       #
         ############################################################################################
+        self.hidden_dim = 400
         self.encoder = nn.Sequential(
             nn.Flatten(),
             nn.Linear(self.input_size, self.hidden_dim),
@@ -93,6 +94,9 @@ class VAE(nn.Module):
         mu = self.mu_layer(h)
         logvar = self.logvar_layer(h)
         # (2)
+        # std = torch.exp(0.5 * logvar)
+        # eps = torch.randn_like(std) 
+        # z = mu + eps * std
         z = reparametrize(mu, logvar)
         # (3)
         x_hat = self.decoder(z)
@@ -120,7 +124,7 @@ class CVAE(nn.Module):
         # (N, H_d) feature space, and a final two layers that project that feature space           #
         # to posterior mu and posterior log-variance estimates of the latent space (N, Z)          #
         ############################################################################################
-        # Replace "pass" statement with your code
+        self.hidden_dim = 400
         self.encoder = nn.Sequential(
             nn.Linear(self.input_size + self.num_classes, self.hidden_dim),
             nn.ReLU(),
