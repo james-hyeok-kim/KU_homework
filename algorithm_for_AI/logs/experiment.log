@@ -1,52 +1,213 @@
 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 34729.29it/s]
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12662.29it/s]
 [1mCLIPModel LOAD REPORT[0m from: openai/clip-vit-base-patch16
 Key                                  | Status     |  | 
 -------------------------------------+------------+--+-
 vision_model.embeddings.position_ids | UNEXPECTED |  | 
 text_model.embeddings.position_ids   | UNEXPECTED |  | 
 
-[3mNotes:
-- UNEXPECTED[3m	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.[0m
-Available columns in dataset: ['caption1', 'caption2']
-Successfully loaded 50 prompts using key: 'caption1'
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+The `use_fast` parameter is deprecated and will be removed in a future version. Use `backend="torchvision"` instead of `use_fast=True`, or `backend="pil"` instead of `use_fast=False`.
+Dataset columns: ['caption1', 'caption2']
+Loaded 500 COCO prompts (key='caption1')
 
-[Stage 0] Measuring Original Model...
-Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  33%|███▎      | 2/6 [00:00<00:00, 19.45it/s]
-Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6068.47it/s]
+[Stage 0] Original SD v1.4 (FID reference collection)...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.63it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.36it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6294.19it/s]
 [1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
 Key                                | Status     |  | 
 -----------------------------------+------------+--+-
 text_model.embeddings.position_ids | UNEXPECTED |  | 
 
-[3mNotes:
-- UNEXPECTED[3m	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.[0m
-Loading pipeline components...:  67%|██████▋   | 4/6 [00:00<00:00, 18.93it/s]Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00,  8.38it/s]Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00,  9.88it/s]
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 13.61it/s]Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.28it/s]
+  [skip] SD_v1_4/Superman_e — 20 images already exist
+  [skip] SD_v1_4/Superman_r — 4 images already exist
+  [skip] SD_v1_4/Van_Gogh_e — 20 images already exist
+  [skip] SD_v1_4/Van_Gogh_r — 4 images already exist
+  [skip] SD_v1_4/Snoopy_e — 20 images already exist
+  [skip] SD_v1_4/Snoopy_r — 4 images already exist
+  [resume] SD_v1_4/coco — 345/500 done, generating rest
+  >> Visual samples: SD_v1_4
 
-[Stage 1] Sequential Erasure (UCE Baseline)...
-Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  33%|███▎      | 2/6 [00:00<00:00, 18.66it/s]
-Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 5147.87it/s]
+[Stage 1] UCE Baseline (sequential + step-by-step)...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.72it/s]Loading pipeline components...:  67%|██████▋   | 4/6 [00:00<00:00, 10.34it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6401.22it/s]
 [1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
 Key                                | Status     |  | 
 -----------------------------------+------------+--+-
 text_model.embeddings.position_ids | UNEXPECTED |  | 
 
-[3mNotes:
-- UNEXPECTED[3m	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.[0m
-Loading pipeline components...:  83%|████████▎ | 5/6 [00:00<00:00,  7.99it/s]Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.28it/s]
->> Generating UCE Visual Samples...
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.85it/s]
+  [UCE step] Erased ['Superman'] — evaluating forgetting...
+  [UCE step] Erased ['Superman', 'Van Gogh'] — evaluating forgetting...
+  [UCE step] Erased ['Superman', 'Van Gogh', 'Snoopy'] — evaluating forgetting...
+  [skip] UCE/Superman_e — 20 images already exist
+  [skip] UCE/Superman_r — 4 images already exist
+  [skip] UCE/Van_Gogh_e — 20 images already exist
+  [skip] UCE/Van_Gogh_r — 4 images already exist
+  [skip] UCE/Snoopy_e — 20 images already exist
+  [skip] UCE/Snoopy_r — 4 images already exist
+  [resume] UCE/coco — 50/500 done, generating rest
+  >> Visual samples: UCE
 
-[Stage 2] Sequential Erasure (SCA-UCE Ours)...
-Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  33%|███▎      | 2/6 [00:00<00:00, 15.59it/s]
-Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6559.19it/s]
+[Stage 2] UCE-EWC Ours (sequential + step-by-step)...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.67it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.42it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6547.75it/s]
 [1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
 Key                                | Status     |  | 
 -----------------------------------+------------+--+-
 text_model.embeddings.position_ids | UNEXPECTED |  | 
 
-[3mNotes:
-- UNEXPECTED[3m	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.[0m
-Loading pipeline components...:  83%|████████▎ | 5/6 [00:00<00:00,  7.82it/s]Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00,  9.97it/s]
->> Generating Ours Visual Samples...
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.69it/s]
+  [UCE-EWC step] Erased ['Superman'] — evaluating forgetting...
+  [UCE-EWC step] Erased ['Superman', 'Van Gogh'] — evaluating forgetting...
+  [UCE-EWC step] Erased ['Superman', 'Van Gogh', 'Snoopy'] — evaluating forgetting...
+  [skip] UCE_EWC/Superman_e — 20 images already exist
+  [skip] UCE_EWC/Superman_r — 4 images already exist
+  [skip] UCE_EWC/Van_Gogh_e — 20 images already exist
+  [skip] UCE_EWC/Van_Gogh_r — 4 images already exist
+  [skip] UCE_EWC/Snoopy_e — 20 images already exist
+  [skip] UCE_EWC/Snoopy_r — 4 images already exist
+  [resume] UCE_EWC/coco — 50/500 done, generating rest
+  >> Visual samples: UCE_EWC
+
+[Stage 3] UCE-Batch (single-shot simultaneous erasure, upper bound)...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.68it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.39it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6321.19it/s]
+[1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
+Key                                | Status     |  | 
+-----------------------------------+------------+--+-
+text_model.embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.52it/s]
+  [skip] UCE_Batch/Superman_e — 20 images already exist
+  [skip] UCE_Batch/Superman_r — 4 images already exist
+  [skip] UCE_Batch/Van_Gogh_e — 20 images already exist
+  [skip] UCE_Batch/Van_Gogh_r — 4 images already exist
+  [skip] UCE_Batch/Snoopy_e — 20 images already exist
+  [skip] UCE_Batch/Snoopy_r — 4 images already exist
+  [resume] UCE_Batch/coco — 50/500 done, generating rest
+  >> Visual samples: UCE_Batch
+
+[Ablation 1] UCE-EWC alpha sweep (erasure + preservation)...
+  >> alpha=0.01...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.52it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.05it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6656.76it/s]
+[1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
+Key                                | Status     |  | 
+-----------------------------------+------------+--+-
+text_model.embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.22it/s]
+  [skip] ablation_alpha/alpha_0.01/Superman_e — 6 images already exist
+  [skip] ablation_alpha/alpha_0.01/Superman_r — 4 images already exist
+  [skip] ablation_alpha/alpha_0.01/Van_Gogh_e — 6 images already exist
+  [skip] ablation_alpha/alpha_0.01/Van_Gogh_r — 4 images already exist
+  [skip] ablation_alpha/alpha_0.01/Snoopy_e — 6 images already exist
+  [skip] ablation_alpha/alpha_0.01/Snoopy_r — 4 images already exist
+  [skip] ablation_alpha/alpha_0.01/coco — 20 images already exist
+  >> alpha=0.1...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.72it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.00it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 5951.35it/s]
+[1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
+Key                                | Status     |  | 
+-----------------------------------+------------+--+-
+text_model.embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.25it/s]
+  [skip] ablation_alpha/alpha_0.1/Superman_e — 6 images already exist
+  [skip] ablation_alpha/alpha_0.1/Superman_r — 4 images already exist
+  [skip] ablation_alpha/alpha_0.1/Van_Gogh_e — 6 images already exist
+  [skip] ablation_alpha/alpha_0.1/Van_Gogh_r — 4 images already exist
+  [skip] ablation_alpha/alpha_0.1/Snoopy_e — 6 images already exist
+  [skip] ablation_alpha/alpha_0.1/Snoopy_r — 4 images already exist
+  [skip] ablation_alpha/alpha_0.1/coco — 20 images already exist
+  >> alpha=1.0...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.68it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.32it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 6233.86it/s]
+[1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
+Key                                | Status     |  | 
+-----------------------------------+------------+--+-
+text_model.embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.44it/s]
+  [skip] ablation_alpha/alpha_1.0/Superman_e — 6 images already exist
+  [skip] ablation_alpha/alpha_1.0/Superman_r — 4 images already exist
+  [skip] ablation_alpha/alpha_1.0/Van_Gogh_e — 6 images already exist
+  [skip] ablation_alpha/alpha_1.0/Van_Gogh_r — 4 images already exist
+  [skip] ablation_alpha/alpha_1.0/Snoopy_e — 6 images already exist
+  [skip] ablation_alpha/alpha_1.0/Snoopy_r — 4 images already exist
+  [skip] ablation_alpha/alpha_1.0/coco — 20 images already exist
+  >> alpha=10.0...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.69it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.43it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 4977.08it/s]
+[1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
+Key                                | Status     |  | 
+-----------------------------------+------------+--+-
+text_model.embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.56it/s]
+  [skip] ablation_alpha/alpha_10.0/Superman_e — 6 images already exist
+  [skip] ablation_alpha/alpha_10.0/Superman_r — 4 images already exist
+  [skip] ablation_alpha/alpha_10.0/Van_Gogh_e — 6 images already exist
+  [skip] ablation_alpha/alpha_10.0/Van_Gogh_r — 4 images already exist
+  [skip] ablation_alpha/alpha_10.0/Snoopy_e — 6 images already exist
+  [skip] ablation_alpha/alpha_10.0/Snoopy_r — 4 images already exist
+  [skip] ablation_alpha/alpha_10.0/coco — 20 images already exist
+
+[Ablation 2] Erasure order sensitivity (Snoopy→Van Gogh→Superman)...
+  >> UCE reversed order...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.70it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.46it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 5974.71it/s]
+[1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
+Key                                | Status     |  | 
+-----------------------------------+------------+--+-
+text_model.embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.67it/s]
+  [skip] ablation_order/UCE/final/Snoopy_e — 6 images already exist
+  [skip] ablation_order/UCE/final/Snoopy_r — 4 images already exist
+  [skip] ablation_order/UCE/final/Van_Gogh_e — 6 images already exist
+  [skip] ablation_order/UCE/final/Van_Gogh_r — 4 images already exist
+  [skip] ablation_order/UCE/final/Superman_e — 6 images already exist
+  [skip] ablation_order/UCE/final/Superman_r — 4 images already exist
+  [skip] ablation_order/UCE/coco — 20 images already exist
+  >> UCE-EWC reversed order...
+Loading pipeline components...:   0%|          | 0/6 [00:00<?, ?it/s]Loading pipeline components...:  17%|█▋        | 1/6 [00:00<00:01,  2.68it/s]Loading pipeline components...:  50%|█████     | 3/6 [00:00<00:00,  7.47it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 5526.43it/s]
+[1mCLIPTextModel LOAD REPORT[0m from: /home/jameskimh/.cache/huggingface/hub/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b/text_encoder
+Key                                | Status     |  | 
+-----------------------------------+------------+--+-
+text_model.embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading pipeline components...: 100%|██████████| 6/6 [00:00<00:00, 10.56it/s]
+  [skip] ablation_order/UCE_EWC/final/Snoopy_e — 6 images already exist
+  [skip] ablation_order/UCE_EWC/final/Snoopy_r — 4 images already exist
+  [skip] ablation_order/UCE_EWC/final/Van_Gogh_e — 6 images already exist
+  [skip] ablation_order/UCE_EWC/final/Van_Gogh_r — 4 images already exist
+  [skip] ablation_order/UCE_EWC/final/Superman_e — 6 images already exist
+  [skip] ablation_order/UCE_EWC/final/Superman_r — 4 images already exist
+  [skip] ablation_order/UCE_EWC/coco — 20 images already exist
 
 >> All Results Saved to ./results/quantitative_table.json

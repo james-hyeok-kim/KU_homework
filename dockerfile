@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y curl gnupg graphviz git wget \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Gemini-CLI 설치
-RUN npm install -g @google/gemini-cli
+# 4. Claude Code 설치
+RUN npm install -g @anthropic-ai/claude-code
 
 # 🔥 4-1. [드라이버 호환성] Host CUDA 12.2 대응 (cu121)
 RUN pip uninstall -y torch torchvision torchaudio && \
@@ -37,8 +37,8 @@ RUN pip install --no-cache-dir opencv-python-headless \
     seaborn torch_fidelity torchinfo torchviz torchview torchmetrics[multimodal] \
     accelerate tqdm tiktoken ftfy scikit-image lpips sentencepiece fairscale image-reward
 
-# 3) LeRobot 설치 (의존성 충돌 방지를 위해 마지막 즈음에 설치)
-RUN pip install --no-cache-dir --upgrade "lerobot[pi] @ git+https://github.com/huggingface/lerobot.git"
+# # 3) LeRobot 설치 (의존성 충돌 방지를 위해 마지막 즈음에 설치)
+# RUN pip install --no-cache-dir --upgrade "lerobot[pi] @ git+https://github.com/huggingface/lerobot.git"
 
 # 4) 버전 확인 사살
 RUN pip install --no-cache-dir "huggingface_hub==0.25.2" "numpy<2.0"

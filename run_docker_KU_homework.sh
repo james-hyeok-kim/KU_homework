@@ -37,5 +37,6 @@ docker run --rm -it \
   -v /data:/data \
   -v "$(pwd)":/app \
   -v ~/.vscode-server-container:/home/$(whoami)/.vscode-server \
+  -v ~/.claude:/home/jameskimh/.claude \
   --workdir /app \
   $(whoami)/doc_ku:latest bash
