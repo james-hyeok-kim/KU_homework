@@ -14,7 +14,7 @@ RESULT_DIR = "/data/jameskimh/homework/continual_CE"
 os.makedirs(RESULT_DIR, exist_ok=True)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-NUM_SAMPLE_FULL = 20   # 메인 테이블: FID 신뢰도 향상 (4→20)
+NUM_SAMPLE_FULL = 100  # 메인 테이블: CS/FID 신뢰도 향상 (20→100)
 NUM_SAMPLE_STEP = 8    # step-by-step: CS 추세 파악 중심
 NUM_SAMPLE_ABL  = 6    # ablation: 빠른 sweep
 
@@ -250,7 +250,10 @@ def evaluate_model(pipeline, prompts, clip_model, clip_processor, fid_metric,
         text=prompts, images=generated, return_tensors="pt", padding=True
     ).to(device)
     with torch.no_grad():
-        cs = clip_model(**inputs).logits_per_image.diag().mean().item()
+        outputs = clip_model(**inputs)
+        image_embeds = outputs.image_embeds / outputs.image_embeds.norm(dim=-1, keepdim=True)
+        text_embeds  = outputs.text_embeds  / outputs.text_embeds.norm(dim=-1, keepdim=True)
+        cs = (image_embeds * text_embeds).sum(dim=-1).mean().item()
 
     fake = torch.stack(tensors).to(device)
     fid  = 0.0
@@ -281,6 +284,56 @@ def save_visual_samples(pipeline, concepts, prefix="Final"):
             img.save(os.path.join(save_dir, f"{csafe}_sample_{i}.png"))
 
 
+def load_coco_real_images(n=500):
+    """실제 이미지 n개를 로드하여 [N,3,512,512] uint8 텐서 반환.
+    FID의 real image reference로 사용.
+    phiyodr/coco2017 시도 후 실패 시 nlphuji/flickr30k로 fallback.
+    """
+    import io
+    from PIL import Image as PILImage
+    to_tensor = transforms.ToTensor()
+
+    def _decode_image(img_data):
+        if isinstance(img_data, PILImage.Image):
+            return img_data.convert("RGB")
+        if isinstance(img_data, bytes):
+            return PILImage.open(io.BytesIO(img_data)).convert("RGB")
+        if isinstance(img_data, dict):
+            b = img_data.get("bytes")
+            if b:
+                return PILImage.open(io.BytesIO(b)).convert("RGB")
+        return None
+
+    def _collect(dataset_name, split, img_key, n):
+        ds = load_dataset(dataset_name, split=split, streaming=True)
+        tensors = []
+        for item in ds:
+            if len(tensors) >= n:
+                break
+            try:
+                img = _decode_image(item.get(img_key))
+                if img is None:
+                    continue
+                img = img.resize((512, 512))
+                tensors.append((to_tensor(img) * 255).to(torch.uint8))
+            except Exception:
+                continue
+        return tensors
+
+    print("  Trying phiyodr/coco2017...")
+    tensors = _collect("phiyodr/coco2017", "validation", "image", n)
+
+    if len(tensors) == 0:
+        print("  [warn] phiyodr/coco2017 failed, falling back to nlphuji/flickr30k")
+        tensors = _collect("nlphuji/flickr30k", "test", "image", n)
+
+    if len(tensors) == 0:
+        raise RuntimeError("Could not load any real images for FID reference")
+
+    print(f"  Loaded {len(tensors)} real images for FID reference")
+    return torch.stack(tensors)
+
+
 def get_eval_prompts(concept, n):
     if "Gogh" in concept:
         return [f"A painting in the style of {concept}"] * n
@@ -309,7 +362,7 @@ def eval_erased_so_far(pipe, erased_concepts, preserved_dict,
 
 def run_experiment(quantitative_table, forgetting_curve, reference_images,
                    clip_model, clip_processor, fid_metric,
-                   coco_prompts, target_concepts, preserved_dict):
+                   coco_prompts, coco_real_images, target_concepts, preserved_dict):
     """3단계 실험 + step-by-step forgetting curve."""
 
     # [Stage 0] Original SD v1.4 — FID reference 수집
@@ -327,10 +380,10 @@ def run_experiment(quantitative_table, forgetting_curve, reference_images,
         quantitative_table["SD_v1_4"][f"{concept}_e"] = {"CS": round(cs_e, 4), "FID": 0.0}
         quantitative_table["SD_v1_4"][f"{concept}_r"] = {"CS": round(cs_r, 4), "FID": 0.0}
 
-    cs_coco, _, ref_coco = evaluate_model(pipe, coco_prompts, clip_model, clip_processor,
-                                           fid_metric, "SD_v1_4/coco")
-    reference_images["MS-COCO"] = ref_coco.cpu()
-    quantitative_table["SD_v1_4"]["MS-COCO"] = {"CS": round(cs_coco, 4), "FID": 0.0}
+    cs_coco, fid_coco, _ = evaluate_model(pipe, coco_prompts, clip_model, clip_processor,
+                                           fid_metric, "SD_v1_4/coco",
+                                           real_images=coco_real_images)
+    quantitative_table["SD_v1_4"]["MS-COCO"] = {"CS": round(cs_coco, 4), "FID": round(fid_coco, 4)}
     save_visual_samples(pipe, target_concepts, "SD_v1_4")
     del pipe; clear_memory()
 
@@ -365,7 +418,7 @@ def run_experiment(quantitative_table, forgetting_curve, reference_images,
 
     cs_coco, fid_coco, _ = evaluate_model(pipe, coco_prompts, clip_model, clip_processor,
                                            fid_metric, "UCE/coco",
-                                           real_images=reference_images["MS-COCO"])
+                                           real_images=coco_real_images)
     quantitative_table["UCE_baseline"]["MS-COCO"] = {"CS": round(cs_coco, 4), "FID": round(fid_coco, 4)}
     save_visual_samples(pipe, target_concepts, "UCE")
     del pipe; clear_memory()
@@ -407,7 +460,7 @@ def run_experiment(quantitative_table, forgetting_curve, reference_images,
 
     cs_coco, fid_coco, _ = evaluate_model(pipe, coco_prompts, clip_model, clip_processor,
                                            fid_metric, "UCE_EWC/coco",
-                                           real_images=reference_images["MS-COCO"])
+                                           real_images=coco_real_images)
     quantitative_table["UCE_EWC_ours"]["MS-COCO"] = {"CS": round(cs_coco, 4), "FID": round(fid_coco, 4)}
     save_visual_samples(pipe, target_concepts, "UCE_EWC")
     del pipe; clear_memory()
@@ -431,7 +484,7 @@ def run_experiment(quantitative_table, forgetting_curve, reference_images,
 
     cs_coco, fid_coco, _ = evaluate_model(pipe, coco_prompts, clip_model, clip_processor,
                                            fid_metric, "UCE_Batch/coco",
-                                           real_images=reference_images["MS-COCO"])
+                                           real_images=coco_real_images)
     quantitative_table["UCE_Batch"]["MS-COCO"] = {"CS": round(cs_coco, 4), "FID": round(fid_coco, 4)}
     save_visual_samples(pipe, target_concepts, "UCE_Batch")
     del pipe; clear_memory()
@@ -577,6 +630,9 @@ def main():
     coco_prompts = [coco_ds[i][key] for i in range(500)]
     print(f"Loaded 500 COCO prompts (key='{key}')")
 
+    print("Loading real COCO images for FID reference...")
+    coco_real_images = load_coco_real_images(n=500).to(device)
+
     quantitative_table = {
         "SD_v1_4": {}, "UCE_baseline": {}, "UCE_EWC_ours": {}, "UCE_Batch": {}
     }
@@ -587,7 +643,7 @@ def main():
     run_experiment(
         quantitative_table, forgetting_curve, reference_images,
         clip_model, clip_processor, fid_metric,
-        coco_prompts, target_concepts, preserved_dict
+        coco_prompts, coco_real_images, target_concepts, preserved_dict
     )
 
     # ── Ablation 1: alpha sweep (erasure + preservation CS) ──

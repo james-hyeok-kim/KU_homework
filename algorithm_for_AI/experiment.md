@@ -45,7 +45,7 @@ Superman → Van Gogh → Snoopy
 
 - **소거 개념**: `"A photo of {concept}"` / Van Gogh는 `"A painting in the style of {concept}"`
 - **보존 개념**: 개념명 직접 사용 (e.g., `"Batman"`, `"Picasso"`)
-- **일반 품질**: MS-COCO captions 50개 (`sentence-transformers/coco-captions`)
+- **일반 품질**: MS-COCO captions 500개 (`sentence-transformers/coco-captions`)
 
 ---
 
@@ -123,8 +123,8 @@ EWC 정규화 강도 alpha ∈ {0.01, 0.1, 1.0, 10.0}
 
 | 평가 종류 | 샘플 수 | 이유 |
 |-----------|---------|------|
-| 메인 테이블 (concept) | 20 | FID 신뢰도 향상 (기존 10) |
-| MS-COCO | 50 | 일반 품질 평가 |
+| 메인 테이블 (concept) | 100 | CS/FID 신뢰도 향상 |
+| MS-COCO | 500 | 일반 품질 평가 |
 | Step-by-step | 8 | 빠른 CS 추세 파악 |
 | Ablation | 6 | 신속한 sweep |
 
@@ -133,8 +133,8 @@ EWC 정규화 강도 alpha ∈ {0.01, 0.1, 1.0, 10.0}
 ## FID 계산 방법
 
 - **기존 문제**: `torch.zeros` (검은 이미지) 대비 FID → 600~800, 무의미
-- **수정**: Stage 0에서 원본 SD v1.4가 생성한 이미지를 real reference로 저장
-- **의미**: 각 방법이 원본 SD의 생성 분포에서 얼마나 벗어났는지 측정
+- **concept별 FID**: Stage 0에서 원본 SD v1.4가 생성한 이미지를 real reference로 저장 → 각 방법이 원본 SD의 생성 분포에서 얼마나 벗어났는지 측정
+- **MS-COCO FID**: `nlphuji/flickr30k` validation에서 real 이미지 500장을 reference로 사용 → SD v1.4 포함 모든 방법이 실제 이미지 분포 대비 절대적 품질로 비교 가능
 
 ---
 
@@ -142,6 +142,11 @@ EWC 정규화 강도 alpha ∈ {0.01, 0.1, 1.0, 10.0}
 
 - **기존**: `encoder_output[0, 1]` → 첫 번째 토큰만 사용 ("Van Gogh"에서 "Van"만 추출)
 - **수정**: BOS/EOS/PAD 제외한 실제 토큰 전체 평균 → 다중 토큰 개념 올바르게 처리
+
+## CS 계산 방법
+
+- **기존 문제**: `logits_per_image.diag()` → CLIP 내부 temperature scale(×100) 적용된 raw logits 반환, 값이 비정상적으로 높게 나옴 (20~35 범위)
+- **수정**: image/text embedding 각각 L2 정규화 후 cosine similarity 직접 계산 → 범위 [−1, 1], 일반적으로 0.15~0.35
 
 ---
 
