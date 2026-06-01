@@ -1,0 +1,253 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{multirow}
+\usepackage{titlesec}
+\usepackage{abstract}
+\usepackage{fancyhdr}
+
+\setlength{\columnsep}{0.25in}
+\titleformat{\section}{\normalsize\bfseries\scshape}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+\titlespacing*{\subsection}{0pt}{6pt}{3pt}
+\captionsetup{font=small,labelfont=bf}
+\captionsetup[subfigure]{font=small}
+\renewcommand{\abstractnamefont}{\normalfont\bfseries\scshape}
+\renewcommand{\abstracttextfont}{\normalfont\small}
+\setlength{\absleftindent}{0pt}
+\setlength{\absrightindent}{0pt}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\small\thepage}
+
+\title{\large\textbf{GLOW vs FLUX: Comparing Normalizing Flows and Flow Matching\\
+for Face Image Generation at 64$\times$64 Resolution}}
+\author{Younghyeok Kim\\Korea University\\\texttt{younghyeok25@gmail.com}}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+We present an empirical comparison of three generative modeling paradigms for face image synthesis at $64\!\times\!64$: \textbf{GLOW}, a normalizing flow trained from scratch on FFHQ-64; \textbf{FLUX.1}, a large-scale flow-matching diffusion transformer; and \textbf{DDPM/DDIM}, a denoising diffusion model pretrained on CelebA-HQ-256. Together these span NFE $\in\{1,4,8,10,20,28,50,100\}$, yielding a complete compute--quality Pareto frontier. At NFE=1, GLOW matches FLUX.1-schnell in FID (183.35 vs.\ 184.94) while sampling $9\times$ faster. DDIM dominates the intermediate range: DDIM-50 achieves the best overall FID of 61.78 at 50 NFE. GLOW retains exclusive capabilities unavailable to any diffusion model: exact log-likelihood (NLL$=-4.61$ bits/dim), encode-decode reconstruction (PSNR=24.24\,dB, SSIM=0.977), and smooth latent interpolation. Our results show that the advantages of large-scale pretrained diffusion models do not uniformly transfer outside their designed operating resolution.
+\end{abstract}
+
+\section{Introduction}
+The landscape of deep generative modeling has been reshaped by diffusion models and flow matching, which achieve state-of-the-art visual quality at the cost of requiring many sequential model evaluations (NFEs) at inference time~\cite{ho2020ddpm,lipman2022fm}. Normalizing flows such as GLOW~\cite{kingma2018glow}, by contrast, collapse inference to a single closed-form forward pass and additionally provide \emph{exact} log-likelihoods via the change-of-variables formula---a property diffusion models fundamentally cannot offer without expensive variational approximations.
+
+A natural comparison emerges: when a large pretrained diffusion model and a compact task-specific normalizing flow are forced to operate at the same resolution, which paradigm offers better sample quality per unit of compute? This question is practically significant because deployment scenarios often have hard latency or throughput constraints that rule out iterative refinement. It is also theoretically interesting because the two paradigms differ not only in architecture, but in what quantities are tractably computable at inference time.
+
+Prior work has compared generative models primarily at or near their training resolution~\cite{karras2019ffhq,heusel2017fid}. We instead force all models to $64\!\times\!64$---far below FLUX.1's intended operating regime ($\geq$512)---while GLOW and DDPM/DDIM are directly suited to this resolution. This asymmetry lets us isolate the effect of resolution mismatch on large pretrained models and characterize the practical tradeoffs across a spectrum of inference-time compute budgets.
+
+We evaluate across four axes: \textbf{(1)} sample quality via FID, \textbf{(2)} exact likelihood via NLL, \textbf{(3)} reconstruction fidelity via PSNR/SSIM, and \textbf{(4)} sampling efficiency via NFE and wall-clock time. The resulting Pareto frontier (Fig.~\ref{fig:pareto}) reveals three distinct operating regimes and one dominated model, with implications for practitioners choosing generative models under compute constraints.
+
+\section{Background}
+
+\subsection{Normalizing Flows and GLOW}
+Normalizing flows define an invertible bijection $f\!:\!\mathcal{X}\!\to\!\mathcal{Z}$ between data space and a latent space equipped with a tractable prior $p_Z$ (typically $\mathcal{N}(0,I)$). The change-of-variables formula yields an exact log-likelihood:
+\[
+\log p_X(x) = \log p_Z(f(x)) + \log\bigl|\det(\partial f/\partial x)\bigr|.
+\]
+The log-determinant term is computed in closed form for each invertible layer, enabling exact density estimation. GLOW~\cite{kingma2018glow} builds on RealNVP~\cite{dinh2016realnvp} with three components per step: \textbf{ActNorm} (data-driven mean/variance normalization), \textbf{Invertible $1\!\times\!1$ Conv} (learned channel permutation via LU decomposition), and \textbf{Affine Coupling} (split-and-transform operation). A multi-scale architecture squeezes spatial dimensions while doubling channels, splitting off half the latents at each scale. Sampling requires a single reverse pass through all layers (NFE=1). Our GLOW uses 4 blocks $\times$ 32 flows, hidden dim 512 ($\approx$76M params).
+
+\subsection{Flow Matching and FLUX.1}
+Flow matching~\cite{lipman2022fm} learns a time-dependent vector field $v_\theta(x,t)$ that defines a probability-flow ODE transporting a noise distribution at $t=0$ to the data distribution at $t=1$. Unlike normalizing flows, the transport map need not be analytically invertible; instead, inference solves the ODE numerically via multiple NFEs. FLUX.1~\cite{flux2024} instantiates this framework as a 12B-parameter diffusion transformer (DiT) pretrained on a large-scale internet image dataset. FLUX.1-schnell uses a distilled 4-NFE trajectory; FLUX.1-dev uses a full 28-NFE ODE solver for higher quality. The model is designed for resolutions $\geq$512$\times$512, and text-conditioned generation is its primary use case.
+
+\subsection{DDPM and DDIM}
+DDPM~\cite{ho2020ddpm} defines a Markov noise process $q(x_t|x_{t-1})$ and learns to reverse it step by step. Standard sampling requires $T=1000$ steps. DDIM~\cite{song2020ddim} derives a deterministic, non-Markovian sampling process from the same score function without retraining, reducing NFE to 10--50 while preserving or improving quality. We use \texttt{google/ddpm-celebahq-256} (113M params, trained on CelebA-HQ at 256$\times$256), sampling at native resolution and bicubically downsampling outputs to 64$\times$64.
+
+\section{Method}
+
+\subsection{GLOW Training}
+We train GLOW on 68,000 FFHQ-64 images (2,000 held out for validation). Images are normalized to $[-0.5,0.5]$ and dequantized with $\mathcal{U}(0,1/256)$ to convert discrete pixel values to a continuous distribution suitable for flow training. We use Adam~\cite{kingma2014adam} with lr=$5\!\times\!10^{-5}$ and a 1,000-step linear warmup from lr/100, motivated by observed gradient instability at the default lr=$10^{-4}$.
+
+Training required two stability modifications: \textbf{(i)} the affine coupling log-scale is clamped to $[-3,3]$ rather than $[-5,5]$, reducing the per-step maximum amplification from $e^5\!\approx\!148$ to $e^3\!\approx\!20$ and preventing compound overflow over 128 sequential layers; \textbf{(ii)} a gradient validity check skips optimizer steps containing any NaN or Inf gradient. Without these fixes, training diverged around step 300--500. Training runs for 30,000 iterations (batch=128, single GPU).
+
+\subsection{FLUX.1 and DDPM/DDIM Sampling}
+For FLUX.1-schnell (NFE=4) and FLUX.1-dev (NFE=8, 28) we generate 5,000 samples at 64$\times$64 using four cycling face-related text prompts with \texttt{diffusers}. DDIM-10/20/50 and DDPM-100 use \texttt{DDIMScheduler}/\texttt{DDPMPipeline} with the same pretrained checkpoint, sampling at 256$\times$256 then bicubically downsampling.
+
+\subsection{Evaluation Protocol}
+\textbf{FID}: cleanfid~\cite{parmar2022cleanfid}, 5k generated vs.\ all 70k FFHQ-64 real images. \textbf{NLL}: exact bits/dim on 2k val images averaged over 50 mini-batches (GLOW only). \textbf{Reconstruction}: PSNR and SSIM on 200 val images passed through GLOW's full encode$\to$decode roundtrip. \textbf{Wall-clock time}: measured end-to-end for 5,000 samples on a single GPU.
+
+\section{Experiments}
+
+\subsection{Sample Quality and Pareto Frontier}
+Table~\ref{tab:main} and Fig.~\ref{fig:pareto} summarize all results. At NFE=1, GLOW (FID=183.35) marginally outperforms FLUX.1-schnell (FID=184.94) while being $9\times$ faster---confirming that task-specific normalizing flows remain competitive with 160$\times$ larger pretrained diffusion models at low resolution.
+
+\textbf{DDIM dominates the intermediate range.} DDIM-10/20/50 achieve FID=68.75/65.96/61.78, all substantially better than any FLUX.1 variant. DDIM-50 achieves the best overall FID of 61.78 at 50 NFE (2,658s/5k). DDPM-100 (FID=71.87) is slightly worse than DDIM-50 despite $2\times$ the NFE, consistent with DDIM's deterministic ODE trajectory being more sample-efficient than the stochastic DDPM chain~\cite{song2020ddim}.
+
+\textbf{FLUX.1-schnell is Pareto-suboptimal.} It is dominated simultaneously by GLOW (better FID, 9$\times$ faster) and by DDIM-10 (FID=68.75 at similar compute). FLUX.1-dev at 28 NFE achieves FID=117.87, better than schnell but worse than all DDIM variants, at $63\times$ the GLOW compute cost.
+
+\subsection{Exact Likelihood}
+GLOW achieves NLL$=-4.61$ bits/dim on the validation set, with the curve still descending at 30k steps (Fig.~\ref{fig:train_curve}). This exact likelihood is architecturally unavailable for FLUX.1 and DDPM/DDIM, which would require expensive ELBO approximations. Practical applications that depend on tractable density---anomaly detection, lossless data compression, model-based optimization---therefore find GLOW uniquely suited.
+
+\subsection{Reconstruction and Latent Interpolation}
+The bijective structure of GLOW enables an encode-decode roundtrip test: $x \to f(x) \to f^{-1}(f(x)) \approx x$. Over 200 validation images, we obtain PSNR=24.24\,dB (std=0.31) and SSIM=0.977 (std=0.008). The near-perfect SSIM confirms that structural information (identity, pose, expression) is preserved; the non-infinite PSNR reflects floating-point accumulation over 128 sequential layers. This capability---and smooth latent interpolation (Fig.~\ref{fig:interp})---is unavailable for any diffusion model.
+
+\subsection{OOD Detection}
+We test GLOW's density as an OOD signal: in-distribution FFHQ faces score NLL$=-4.609$ bits/dim, while solid-color images score $-6.854$ bits/dim (lower), and pure noise triggers numerical overflow (NaN). The solid-image anomaly illustrates the well-known ``likelihood $\neq$ quality'' failure mode of normalizing flows~\cite{nalisnick2019deep}: models can assign high probability to structurally simple inputs that are perceptually unlike training data.
+
+\subsection{Sampling Efficiency}
+GLOW generates 5,000 samples in 137s (NFE=1); FLUX-schnell requires 1,231s ($9\times$); FLUX-dev requires 8,617s ($63\times$). The gap is architectural: the closed-form inverse of a normalizing flow collapses iterative denoising into a single deterministic pass, with no accuracy loss relative to the learned distribution.
+
+\section{Discussion}
+FLUX.1-schnell's failure to dominate GLOW stems from a resolution mismatch: at 64$\times$64, FLUX.1's VAE reduces the feature map to only $8\!\times\!8$ tokens (256 total), leaving far fewer spatial positions for attention than the model's positional encodings are calibrated for at $\geq$512$\times$512. DDIM avoids this issue because \texttt{google/ddpm-celebahq-256} is trained entirely on face images and operates at pixel resolution rather than through a VAE bottleneck; bicubic downsampling of 256$\times$256 outputs to 64$\times$64 preserves perceptual quality well.
+
+Our Pareto analysis identifies four regimes: \textit{latency-critical} (GLOW, NFE=1): the only single-pass option with exact density; \textit{efficiency-optimal} (DDIM-10--50): best FID/NFE tradeoff via a face-domain pretrained model; \textit{high-compute quality} (FLUX-dev, NFE$\geq$28): useful when compute is abundant and text conditioning is needed; and \textit{dominated} (FLUX-schnell): no advantage over GLOW or DDIM at any operating point.
+
+GLOW's greater hyperparameter sensitivity---requiring warmup and log-scale clamping to avoid divergence---contrasts with the robustness of diffusion training pipelines. However, once stabilized, GLOW's training is straightforward and its inference is maximally simple. The NLL at 30k steps ($-4.61$) is still decreasing, suggesting continued training would further reduce FID and potentially close the gap with DDIM.
+
+\section{Conclusion}
+We compare GLOW (76M params, NFE=1), FLUX.1 (12B params, NFE=4--28), and DDPM/DDIM (113M params, NFE=10--100) on face generation at 64$\times$64. The complete Pareto frontier reveals that GLOW dominates at NFE=1 with exact likelihood and single-pass inference; DDIM dominates at NFE=10--50 with the best overall FID (61.78 at 50 NFE); and FLUX.1-schnell is dominated at every operating point at this resolution. GLOW's exclusive capabilities---tractable NLL, encode-decode reconstruction, and latent interpolation---remain practically significant for density-sensitive applications regardless of FID comparisons. These results demonstrate that architectural advantages of large pretrained models are resolution-dependent and do not uniformly transfer to low-resolution regimes.
+
+\small
+\begin{thebibliography}{99}
+\bibitem{kingma2018glow}Kingma, D.P., \& Dhariwal, P. (2018). Glow. \emph{NeurIPS}.
+\bibitem{flux2024}Black Forest Labs. (2024). FLUX.1.
+\bibitem{ho2020ddpm}Ho, J., Jain, A., \& Abbeel, P. (2020). DDPM. \emph{NeurIPS}.
+\bibitem{song2020ddim}Song, J., Meng, C., \& Ermon, S. (2021). DDIM. \emph{ICLR}.
+\bibitem{lipman2022fm}Lipman, Y., et al. (2023). Flow matching. \emph{ICLR}.
+\bibitem{karras2019ffhq}Karras, T., et al. (2019). StyleGAN. \emph{CVPR}.
+\bibitem{heusel2017fid}Heusel, M., et al. (2017). FID. \emph{NeurIPS}.
+\bibitem{dinh2016realnvp}Dinh, L., et al. (2016). RealNVP. \emph{ICLR}.
+\bibitem{parmar2022cleanfid}Parmar, G., et al. (2022). cleanfid. \emph{CVPR}.
+\bibitem{nalisnick2019deep}Nalisnick, E., et al. (2019). OOD in NF. \emph{ICLR}.
+\bibitem{kingma2014adam}Kingma, D.P., \& Ba, J. (2015). Adam. \emph{ICLR}.
+\end{thebibliography}
+
+% ─── Tables & Figures ────────────────────────────────────────────────────────
+\clearpage
+\onecolumn
+
+% ── Page 4: Tables ───────────────────────────────────────────────────────────
+\begin{table}[H]
+\centering
+\caption{Complete quantitative comparison. $\dagger$CelebA-HQ-256 weights, downsampled to 64. $\ddagger$FLUX.1 at 64$\times$64.}
+\label{tab:main}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Params} & \textbf{NFE} & \textbf{FID\,$\downarrow$} & \textbf{NLL\,(b/d)\,$\downarrow$} & \textbf{Time\,(5k)} & \textbf{Training data}\\
+\midrule
+GLOW (30k)               & 76M  & 1   & 183.35 & \textbf{-4.61} & 137s    & FFHQ-64 scratch\\
+FLUX.1-schnell$^\ddagger$ & 12B & 4   & 184.94 & ---            & 1,231s  & Pretrained\\
+FLUX.1-dev-8$^\ddagger$   & 12B & 8   & 126.15 & ---            & ---     & Pretrained\\
+DDIM-10$^\dagger$         & 113M & 10 & 68.75  & ---            & 602s    & CelebA-HQ-256\\
+DDIM-20$^\dagger$         & 113M & 20 & 65.96  & ---            & 1,346s  & CelebA-HQ-256\\
+DDIM-50$^\dagger$         & 113M & 50 & \textbf{61.78}  & ---   & 2,658s  & CelebA-HQ-256\\
+DDPM-100$^\dagger$        & 113M & 100 & 71.87 & ---            & 5,453s  & CelebA-HQ-256\\
+FLUX.1-dev$^\ddagger$     & 12B & 28  & 117.87 & ---            & 8,617s  & Pretrained\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{GLOW-exclusive capabilities (architecturally unavailable for diffusion models).}
+\label{tab:glow}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Notes}\\
+\midrule
+Validation NLL    & $-4.61$ b/d ($\sigma=0.41$) & Decreasing at 30k steps\\
+Reconstruction PSNR & 24.24\,dB ($\sigma=0.31$) & 200 val images\\
+Reconstruction SSIM & 0.977 ($\sigma=0.008$)    & Near-perfect structure\\
+Latent interpolation & Qualitative (Fig.~\ref{fig:interp}) & Smooth semantic transitions\\
+OOD NLL (FFHQ)   & $-4.61$ b/d  & In-distribution\\
+OOD NLL (solid)  & $-6.85$ b/d  & Likelihood $\ne$ quality~\cite{nalisnick2019deep}\\
+OOD NLL (noise)  & NaN          & Numerical overflow\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ── Page 5: Fig 1 (concept) + Fig 2 (training curve) / Fig 5 (reconstruction) vertically ──
+\newpage
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.70\linewidth]{../experiments/results/fig1_concept_diagram.png}
+\caption{\textbf{Generative model principles.} Transport path geometry (NF=bijection, FM=straight ODE, DDPM=stochastic SDE, DDIM=deterministic ODE) and key property comparison.}
+\label{fig:concept}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{\linewidth}
+  \centering
+  \includegraphics[width=0.62\linewidth]{../experiments/results/fig2_training_curve.png}
+  \caption{\textbf{GLOW training curve.} NLL still decreasing at 30k steps; warmup ends at step 1k (dashed).}
+  \label{fig:train_curve}
+\end{subfigure}
+\\[0.35cm]
+\begin{subfigure}[b]{\linewidth}
+  \centering
+  \includegraphics[width=0.62\linewidth]{../experiments/results/fig5_reconstruction.png}
+  \caption{\textbf{GLOW reconstruction} (200 val images). PSNR=24.24\,dB, SSIM=0.977. Unavailable for diffusion models.}
+  \label{fig:recon}
+\end{subfigure}
+\end{figure}
+
+% ── Page 6: Fig 3 (Pareto) / Fig 4 (sample grid) vertically ─────────────────
+\newpage
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{\linewidth}
+  \centering
+  \includegraphics[width=0.82\linewidth]{../experiments/results/fig3_fid_pareto.png}
+  \caption{\textbf{FID and Pareto frontier.} Left: bar chart. Right: Pareto frontier (log-scale). FLUX.1-schnell is Pareto-suboptimal; DDIM-50 achieves the best FID (61.78) at 50 NFE.}
+  \label{fig:pareto}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{\linewidth}
+  \centering
+  \includegraphics[width=0.58\linewidth]{../experiments/results/fig4_sample_grid.png}
+  \caption{\textbf{Generated samples} at 64$\times$64: GLOW (top), FLUX.1-schnell (middle), FLUX.1-dev (bottom).}
+  \label{fig:samples}
+\end{subfigure}
+\end{figure}
+
+% ── Fig 6 (interpolation) + Fig 7 (OOD) side by side ────────────────────────
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.54\linewidth}
+  \includegraphics[width=\linewidth]{../experiments/results/fig6_interpolation.png}
+  \caption{\textbf{Latent interpolation.} $z_\alpha=(1{-}\alpha)z_A+\alpha z_B$ decoded for $\alpha\in[0,1]$. Requires exact invertibility---unavailable in diffusion models.}
+  \label{fig:interp}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.43\linewidth}
+  \includegraphics[width=\linewidth]{../experiments/results/fig7_ood_detection.png}
+  \caption{\textbf{OOD detection via NLL.} Solid images score lower NLL than faces, illustrating ``likelihood $\ne$ quality''. FLUX.1/DDPM cannot compute $p(x)$.}
+  \label{fig:ood}
+\end{subfigure}
+\end{figure}
+
+% ── Fig 8 + Fig 9 side by side ───────────────────────────────────────────────
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.48\linewidth}
+  \includegraphics[width=\linewidth]{../experiments/results/fig8_transport_paths.png}
+  \caption{\textbf{Transport paths} on 2D two-moons. NF: grid rearrangement; FM: straight lines; DDPM: zigzag SDE; DDIM: smooth ODE.}
+  \label{fig:paths}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\linewidth}
+  \includegraphics[width=\linewidth]{../experiments/results/fig9_twomoons_4way.png}
+  \caption{\textbf{Intermediate distributions} on two-moons (6 snapshots/model). Color = point identity tracked from noise to data.}
+  \label{fig:twomoons}
+\end{subfigure}
+\end{figure}
+
+\end{document}

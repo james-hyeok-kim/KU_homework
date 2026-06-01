@@ -1,9 +1,10 @@
 """
 Query-Conditioned Visual Token Selector.
 
-Lightweight cross-attention module inserted between VisRAG retriever and VLM generator.
-Prunes patch tokens per page based on query relevance, enabling more pages within a fixed
-token budget.
+Lightweight bilinear dot-product scoring module inserted between VisRAG retriever and VLM generator.
+Projects query and patch tokens into a shared 256-dim space, computes per-patch relevance scores
+via dot product, then selects the top-r fraction. No cross-attention, no softmax weighting.
+Prunes patch tokens per page based on query relevance, enabling more pages within a fixed token budget.
 """
 
 from __future__ import annotations
@@ -88,7 +89,8 @@ def hinge_loss(
     if noise_page_mask is None:
         noise_page_mask = ~answer_page_mask
 
-    loss = scores.new_zeros(1).squeeze()
+    # Anchor to scores so zero is differentiable when no valid pairs exist
+    loss = scores.sum() * 0.0
     count = 0
 
     for b in range(B):
