@@ -14,3 +14,6 @@ __pycache__/
 # LaTeX build artifacts
 *.aux
 *.out
+
+# Large data archives
+generative_artificial_intelligence/final_project/data/final_project_data.tar.gz

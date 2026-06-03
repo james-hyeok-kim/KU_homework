@@ -1,0 +1,202 @@
+# Code Description & Reproduction Guide
+# GLOW vs FLUX: Comparing Normalizing Flows and Flow Matching at 64x64
+# =====================================================================
+
+## Project Overview
+
+This project empirically compares three families of generative models for
+64x64 face image synthesis:
+  - GLOW (Normalizing Flow, 76M params, trained from scratch on FFHQ-64)
+  - FLUX.1 (Flow Matching DiT, ~12B params, pretrained)
+  - DDPM/DDIM (Denoising Diffusion, 113M params, pretrained on CelebA-HQ-256)
+
+Evaluation covers FID, exact NLL (GLOW only), reconstruction PSNR/SSIM,
+latent interpolation, OOD detection, and sampling efficiency (NFE/wall-clock).
+
+
+## Directory Structure
+
+This repository contains code only. Data is provided separately
+as final_project_data.tar.gz (see "Data Setup" section below).
+
+code/
+  model.py          GLOW model (ActNorm, InvConv, AffineCoupling, GlowBlock)
+  dataset.py        FFHQ-64 DataLoader (train / val split)
+  train.py          GLOW training loop (NLL loss, warmup, NaN guard)
+  evaluate.py       GLOW NLL + FID evaluation
+  reconstruct.py    Encode-decode reconstruction (PSNR / SSIM)
+  sample_flux.py    FLUX.1 sampling (schnell / dev, configurable NFE)
+  sample_ddim.py    DDIM-10/20/50 + DDPM-100 sampling & FID
+  interpolation.py  Latent space interpolation + fig6 generation
+  ood_detection.py  OOD detection via NLL + fig7 generation
+  visualize_2d.py   2D two-moons transport path visualization (fig8, fig9)
+  make_figures.py   Regenerate all paper figures (fig1-9) in one command
+
+Data paths used by scripts (all under /data/jameskimh/final_project/):
+  data/ffhq64/          FFHQ-64x64 images (~70k PNGs, 1.9 GB)
+  glow_pretrained/      Trained GLOW checkpoints (step 5k-30k, 6.0 GB)
+  samples/              Generated sample images per model (592 MB)
+  logs/                 FID results, training logs, experiment outputs
+  experiments/results/  Paper figures (fig1-fig9)
+
+
+## Data Setup
+
+Data is NOT included in the code folder.
+It is provided separately as: final_project_data.tar.gz (~5-7 GB compressed)
+
+Contents of final_project_data.tar.gz:
+  final_project/
+    data/ffhq64/              FFHQ 64x64 training & reference images
+    glow_pretrained/          GLOW checkpoints (glow_v2_ffhq64_030000.pt etc.)
+    samples/                  Pre-generated 5k samples per model variant
+    logs/                     All FID scores and experiment logs
+    experiments/results/      All paper figures
+
+To extract:
+    tar -xzf final_project_data.tar.gz -C /data/jameskimh/
+
+After extraction the directory structure will be:
+    /data/jameskimh/final_project/data/ffhq64/
+    /data/jameskimh/final_project/glow_pretrained/
+    /data/jameskimh/final_project/samples/
+    /data/jameskimh/final_project/logs/
+
+The data paths in each script are pre-configured to this location.
+To use a different base path, update the path constants at the top of each script.
+
+
+## Reproduction Steps
+
+### 0. Install dependencies
+    pip install -r requirements.txt
+
+    # PyTorch with CUDA (match your CUDA version):
+    pip install torch==2.9.1+cu130 torchvision==0.24.1+cu130 \
+        --index-url https://download.pytorch.org/whl/cu130
+
+### 1. Set up data (from final_project_data.tar.gz)
+    # Extract the provided data archive to /data/jameskimh/:
+    tar -xzf final_project_data.tar.gz -C /data/jameskimh/
+
+    # This will create:
+    #   /data/jameskimh/final_project/data/ffhq64/     (FFHQ images)
+    #   /data/jameskimh/final_project/glow_pretrained/ (GLOW checkpoints)
+    #   /data/jameskimh/final_project/samples/         (pre-generated samples)
+    #   /data/jameskimh/final_project/logs/            (FID results)
+
+    # To skip re-training and use the provided checkpoint directly,
+    # jump to step 3 (evaluate) or step 5 (FLUX sampling).
+
+### 2. Train GLOW from scratch
+    cd code/
+    python train.py
+
+    # Key hyperparameters (see train.py):
+    #   lr=5e-5, warmup=1000 steps, batch=128, steps=30000
+    #   4 blocks x 32 flows, hidden_channels=512
+    #   Checkpoint saved every 5000 steps to:
+    #     /data/jameskimh/final_project/glow_pretrained/
+
+    # To monitor training with auto-restart on crash:
+    bash run_train_with_watchdog.sh
+
+### 3. Evaluate GLOW (NLL + FID)
+    python evaluate.py
+    # Outputs: NLL (bits/dim) on val set, FID vs FFHQ-64 (5k samples)
+
+### 4. GLOW reconstruction (PSNR / SSIM)
+    python reconstruct.py
+    # Evaluates 200 val images: encode -> decode -> compare
+
+### 5. Generate FLUX.1 samples
+    # FLUX.1-schnell (NFE=4, default):
+    python sample_flux.py --model schnell
+
+    # FLUX.1-dev (NFE=28, default):
+    python sample_flux.py --model dev
+
+    # FLUX.1-dev with custom NFE (e.g., 8):
+    python sample_flux.py --model dev --nfe 8
+
+    # Pretrained weights expected at:
+    #   /data/jameskimh/flux_pretrained/FLUX.1-schnell/
+    #   /data/jameskimh/flux_pretrained/FLUX.1-dev/
+
+### 6. Generate DDIM / DDPM samples + FID
+    python sample_ddim.py
+    # Generates 5000 samples each for ddim_10/20/50 and ddpm_100
+    # Uses google/ddpm-celebahq-256 (auto-downloaded from HuggingFace)
+    # Computes FID for each variant; results saved to logs/ddim_results.json
+
+    # Generate specific variants only:
+    python sample_ddim.py --variants ddim_50 ddpm_100
+
+### 7. GLOW latent space interpolation
+    python interpolation.py
+    # Saves fig6_interpolation.png to experiments/results/
+
+### 8. OOD detection via NLL
+    python ood_detection.py
+    # Tests NLL on FFHQ faces, solid colors, and random noise
+    # Saves fig7_ood_detection.png and logs/ood_results.json
+
+### 9. 2D transport path visualization
+    python visualize_2d.py
+    # Trains lightweight 2D models (NF, FM, DDPM) on two-moons dataset
+    # Saves fig8_transport_paths.png and fig9_twomoons_4way.png
+
+### 10. Regenerate all paper figures at once
+    python make_figures.py              # regenerate all fig1-9
+    python make_figures.py --figs 2 3  # regenerate specific figures only
+
+
+## How the Code Works
+
+### GLOW (model.py + train.py)
+
+The model implements the multi-scale GLOW architecture:
+  - Each GlowBlock contains n_flows sequential flow steps
+  - Each step applies: ActNorm -> InvConv -> AffineCoupling
+  - Non-final blocks split off half the channels as latents (z_split)
+    and squeeze the remaining activations before the next block
+  - Training maximizes log p(x) = log p_Z(f(x)) + sum(log|det(df/dx)|)
+
+Two key stability modifications vs. standard GLOW:
+  1. AffineCoupling log-scale clamped to [-3, 3]
+     (default [-5,5] allows e^5~148x amplification per step -> divergence)
+  2. Gradient validity check: optimizer step is skipped if any gradient
+     contains NaN or Inf (training would otherwise diverge at step ~300-500)
+
+Sampling: model.sample(n, temperature) draws z ~ N(0, T^2*I) for each
+latent and applies the reverse pass through all blocks.
+
+### DDIM / DDPM (sample_ddim.py)
+
+Uses HuggingFace diffusers with google/ddpm-celebahq-256:
+  - DDPMPipeline for stochastic sampling (DDPM-100)
+  - DDIMScheduler for deterministic ODE sampling (DDIM-10/20/50)
+  - All outputs generated at 256x256, then bicubically downsampled to 64x64
+
+### FID Evaluation
+
+All FID scores use clean-fid (cleanfid library) with:
+  - 5,000 generated samples
+  - 70,000 FFHQ-64 real images as reference
+  - Default InceptionV3 features
+
+
+## Key Results Summary
+
+  Model            NFE   FID      NLL (b/d)   Time(5k)
+  GLOW (30k)         1   183.35   -4.61       137s
+  FLUX.1-schnell     4   184.94   N/A         1,231s
+  FLUX.1-dev-8       8   126.15   N/A         N/A
+  DDIM-10           10    68.75   N/A         602s
+  DDIM-20           20    65.96   N/A         1,346s
+  DDIM-50           50    61.78   N/A         2,658s   <- best FID overall
+  DDPM-100         100    71.87   N/A         5,453s
+  FLUX.1-dev        28   117.87   N/A         8,617s
+
+  GLOW reconstruction: PSNR=24.24 dB, SSIM=0.977 (200 val images)
+  GLOW OOD NLL:  FFHQ=-4.609, solid=-6.854, noise=NaN
