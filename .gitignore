@@ -17,3 +17,17 @@ __pycache__/
 
 # Large data archives
 generative_artificial_intelligence/final_project/data/final_project_data.tar.gz
+
+# External clones (re-clonable from GitHub)
+algorithm_for_AI/AI-Final-project_chaemin/
+algorithm_for_AI/Visual-RAG_kjmin/
+
+# Whitelist final comparison tables from ignored results/
+!algorithm_for_AI/visrag_research/results/
+algorithm_for_AI/visrag_research/results/*
+!algorithm_for_AI/visrag_research/results/comparison_v2/
+algorithm_for_AI/visrag_research/results/comparison_v2/*
+!algorithm_for_AI/visrag_research/results/comparison_v2/table*.md
+!algorithm_for_AI/visrag_research/results/comparison_v2_tf451/
+algorithm_for_AI/visrag_research/results/comparison_v2_tf451/*
+!algorithm_for_AI/visrag_research/results/comparison_v2_tf451/table*.md
