@@ -1,0 +1,100 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=2.1cm,top=1.9cm,bottom=1.9cm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.35}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}p{3.6cm}}
+\newcolumntype{R}{>{\raggedright\arraybackslash}X}
+
+\begin{document}
+
+\begin{center}
+    {\LARGE\bfseries Group Member Roles and Responsibilities}\\[6pt]
+    {\large Generative Artificial Intelligence --- Final Project}\\[3pt]
+    {\normalsize Korea University}\\[8pt]
+    {\itshape GLOW vs FLUX: Comparing Normalizing Flows and Flow Matching\\
+    for Face Image Generation at $64\times64$ Resolution}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{10pt}
+
+\textbf{Team composition.}\quad
+This final project was carried out as an \textbf{individual (one-person) project}.
+All roles and responsibilities listed below were performed by the single member.
+
+\vspace{8pt}
+
+\begin{tabularx}{\textwidth}{@{}lR@{}}
+    \toprule
+    \textbf{Member} & \textbf{Affiliation / Contact} \\
+    \midrule
+    Younghyeok Kim & Korea University \quad\textbullet\quad \texttt{younghyeok25@gmail.com} \\
+    \bottomrule
+\end{tabularx}
+
+\vspace{14pt}
+
+{\large\bfseries Roles and Responsibilities}
+
+\vspace{6pt}
+
+\begin{tabularx}{\textwidth}{@{}LR@{}}
+    \toprule
+    \textbf{Role} & \textbf{Responsibilities and Deliverables} \\
+    \midrule
+    Research Design \& Project Lead &
+    Defined the research question (normalizing flows vs.\ flow matching at low
+    resolution), designed the experimental protocol across four evaluation axes
+    (sample quality, exact likelihood, reconstruction fidelity, sampling
+    efficiency), and managed the overall project schedule. \\
+    \addlinespace[2pt]
+    Model Implementation &
+    Implemented GLOW from scratch in PyTorch ($\sim$76M parameters): ActNorm,
+    invertible $1\times1$ convolution with LU decomposition, affine coupling,
+    and the multi-scale block architecture, plus the FFHQ-64 data pipeline
+    (\texttt{model.py}, \texttt{dataset.py}). \\
+    \addlinespace[2pt]
+    Training \& Infrastructure &
+    Built the training loop (NLL objective, 1{,}000-step LR warmup, batch 128,
+    30{,}000 iterations) and resolved divergence via two stability fixes:
+    log-scale clamping to $[-3,3]$ and a NaN/Inf gradient guard. Set up
+    checkpointing and a watchdog script for auto-restart on crash
+    (\texttt{train.py}, \texttt{run\_train\_with\_watchdog.sh}). \\
+    \addlinespace[2pt]
+    Baseline Sampling \& Evaluation &
+    Ran pretrained baselines at $64\times64$ --- FLUX.1-schnell/dev (4--28 NFE)
+    and DDIM-10/20/50 / DDPM-100 --- and measured FID (clean-fid, 5k samples vs.\
+    70k FFHQ references), exact NLL, reconstruction PSNR/SSIM, and wall-clock
+    sampling cost (\texttt{sample\_flux.py}, \texttt{sample\_ddim.py},
+    \texttt{evaluate.py}, \texttt{reconstruct.py}). \\
+    \addlinespace[2pt]
+    Analysis \& Visualization &
+    Conducted latent-space interpolation, OOD detection via NLL, and 2D
+    two-moons transport-path comparison of the three paradigms; produced all
+    paper figures 1--9 (\texttt{interpolation.py}, \texttt{ood\_detection.py},
+    \texttt{visualize\_2d.py}, \texttt{make\_figures.py}). \\
+    \addlinespace[2pt]
+    Writing \& Presentation &
+    Wrote the final report (\texttt{report.pdf}, two-column paper format),
+    prepared the presentation slides and script, and authored the code
+    documentation and reproduction guide accompanying the submission. \\
+    \bottomrule
+\end{tabularx}
+
+\vspace{14pt}
+\hrule
+\vspace{6pt}
+{\small All implementation, experiments, analysis, and writing were performed
+solely by Younghyeok Kim.}
+
+\end{document}

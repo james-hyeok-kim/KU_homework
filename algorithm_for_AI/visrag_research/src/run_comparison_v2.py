@@ -50,7 +50,7 @@ LOCAL_MODEL = "/data/jameskimh/visrag_experiment/models/Qwen2-VL-7B-Instruct"
 # Dataset name -> local parquet dir
 LOCAL_DIR = {"InfoVQA": "infovqa", "ChartQA": "chartqa", "MP-DocVQA": "docvqa", "SlideVQA": "slidevqa"}
 
-MODES = ("image_only", "ocr_text_only", "ocr_text_image", "selective_llm")
+MODES = ("image_only", "ocr_text_only", "ocr_text_image", "selective_llm", "selective_upstage")
 
 # ---------------------------------------------------------------------------
 # Prompts
@@ -193,6 +193,19 @@ class JsonlCache:
             f.write(json.dumps({"key": key, "value": value}, ensure_ascii=False) + "\n")
 
 
+def load_upstage_cache(dataset: str) -> dict[str, str]:
+    """Load Chaemin's pre-parsed Upstage VDU text, keyed by corpus_id."""
+    path = CHAEMIN / "data" / "parsed" / f"{dataset}_first100_qrels_upstage.jsonl"
+    cache: dict[str, str] = {}
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    row = json.loads(line)
+                    cache[row["corpus_id"]] = row["text"]
+    return cache
+
+
 def get_ocr_text(corpus_id: str, image: Image.Image, cache: JsonlCache) -> tuple[str, float]:
     cached = cache.get(corpus_id)
     if cached is not None:
@@ -281,6 +294,8 @@ def main() -> None:
     ocr_cache = JsonlCache(cache_dir / f"ocr_{args.dataset}.jsonl")
     route_cache = JsonlCache(cache_dir / f"route_{args.dataset}.jsonl")
 
+    upstage_text = load_upstage_cache(args.dataset) if args.mode == "selective_upstage" else {}
+
     rows: list[dict[str, Any]] = []
     for i, s in enumerate(samples):
         images = [corpus[d] for d in s["docids"]]
@@ -313,7 +328,7 @@ def main() -> None:
             gen_images = images if with_imgs else []
             row["ocr_context_available"] = bool(context.strip())
 
-        else:  # selective_llm: chart -> image, text/mixed -> OCR text
+        elif args.mode == "selective_llm":  # chart -> image, text/mixed -> OCR text
             routes, chunks, gen_images = [], [], []
             for docid, img in zip(s["docids"], images):
                 label, sec = get_route(docid, img, route_cache)
@@ -332,6 +347,26 @@ def main() -> None:
             )
             row["routes"] = routes
             row["ocr_context_available"] = bool(chunks)
+
+        else:  # selective_upstage: chart -> image, text/mixed -> Upstage VDU text
+            routes, chunks, gen_images = [], [], []
+            for docid, img in zip(s["docids"], images):
+                label, sec = get_route(docid, img, route_cache)
+                ocr_sec += sec
+                routes.append(label)
+                if label == "chart":
+                    gen_images.append(img)
+                else:
+                    text = upstage_text.get(docid, "")
+                    if text:
+                        chunks.append(f"[Document {docid}]\n{text}")
+            context = "\n\n".join(chunks)
+            prompt = build_answer_prompt(
+                s["query"], context,
+                with_images=bool(gen_images), with_text=bool(chunks),
+            )
+            row["routes"] = routes
+            row["upstage_context_available"] = bool(chunks)
 
         out = vlm_generate(prompt, gen_images, max_new_tokens=args.max_new_tokens)
         row.update({
